@@ -6,3 +6,4 @@ description = "Utilities for swapping the byte-order of in-memory types."
 repository = "https://github.com/IanE9/lilbig"
 license = "MPL-2.0"
 keywords = ["byteorder", "endian"]
+categories = ["no-std"]
