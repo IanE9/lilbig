@@ -280,6 +280,40 @@ pub trait ByteOrdered: Sized {
 /// ```
 pub trait FieldsByteOrdered {
     /// Unconditionally swap the byte-order of `self`'s fields.
+    ///
+    /// # Examples
+    /// Basic usage:
+    /// ```
+    /// // Defining a record describing a person and swapping the byte-order of an instances's
+    /// // fields.
+    /// use lilbig::FieldsByteOrdered;
+    ///
+    /// /// Record describing a person.
+    /// struct PersonRecord {
+    ///     /// The person's name.
+    ///     pub name: String,
+    ///     /// The person's age.
+    ///     pub age: u16,
+    /// }
+    ///
+    /// impl FieldsByteOrdered for PersonRecord {
+    ///     fn swap_field_orders(&mut self) {
+    ///         // `age` is the only field to which byte-order is relevant.
+    ///         self.age.swap_field_orders();
+    ///     }
+    /// }
+    ///
+    /// const NAME: &'static str = "Wolfgang";
+    /// const AGE: u16 = 23u16;
+    /// let mut record = PersonRecord {
+    ///     name: NAME.into(),
+    ///     age: AGE,
+    /// };
+    ///
+    /// record.swap_field_orders();
+    /// assert_eq!(NAME, record.name);
+    /// assert_eq!(AGE.swap_bytes(), record.age);
+    /// ```
     fn swap_field_orders(&mut self);
 
     /// Provided `self`'s current byte-order as an input argument, conditionally swap the byte-order
