@@ -5,8 +5,7 @@ use crate::{ByteOrdered, FieldsByteOrdered};
 /// Implement both [`ByteOrdered`] and [`FieldsByteOrdered`] as NOPs for a set of types.
 macro_rules! impl_ordered_nop {
     ($($ty: ty),+) => {
-        $(
-        /// Provided for completeness. Single bytes values satisfy all byte-orders thus this
+        $(/// Provided for completeness. Single bytes values satisfy all byte-orders thus this
         /// function always returns `self` unmodified.
         impl ByteOrdered for $ty {
             #[inline(always)]
