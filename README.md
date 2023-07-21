@@ -1,6 +1,6 @@
-![Crates.io](https://img.shields.io/crates/l/lilbig) ![Crates.io](https://img.shields.io/crates/v/lilbig) ![docs.rs](https://img.shields.io/docsrs/lilbig)
-
 # LilBig
+[![Crates.io](https://img.shields.io/crates/v/lilbig)](https://crates.io/crates/lilbig) [![Crates.io](https://img.shields.io/crates/l/lilbig)](https://choosealicense.com/licenses/mpl-2.0/) [![docs.rs](https://img.shields.io/docsrs/lilbig)](https://docs.rs/lilbig/)
+
 A Rust crate offering utilities for swapping the byte-order of in-memory types.
 
 ## 🚧 Stability 🚧
