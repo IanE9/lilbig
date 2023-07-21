@@ -14,23 +14,29 @@ pub enum ByteOrder {
     Be,
 }
 
-/// Helper to define the native byte-order constant for the compilation target.
-///
-/// This exists primarily to ensure that there is exactly one location where the documentation for
-/// the `NATIVE` constant is physically written.
-macro_rules! byte_order_native {
-    ($($cfg: literal => $byte_order: expr,)+) => {
-        $(/// The compilation target's native byte-order.
-        #[cfg(target_endian = $cfg)]
-        pub const NATIVE: Self = $byte_order;)+
-    };
-}
-
 impl ByteOrder {
-    byte_order_native! {
-        "little" => Self::Le,
-        "big" => Self::Be,
+    /// Implementation for computing the value for [`NATIVE`](ByteOrder::NATIVE).
+    ///
+    /// Providing the value through the invocation of a function like this supresses Cargo's
+    /// documentation generation from providing a documented value for the constant. This is
+    /// desirable because it avoids suggesting to the user that the constant's value is always equal
+    /// to whatever the native byte-order was for the machine that generated the documentation.
+    const fn compute_native() -> Self {
+        #[cfg(target_endian = "little")]
+        {
+            Self::Le
+        }
+        #[cfg(target_endian = "big")]
+        {
+            Self::Be
+        }
     }
+
+    /// The compilation target's native byte-order.
+    pub const NATIVE: Self = Self::compute_native();
+
+    /// The opposite of the compilation target's native byte-order.
+    pub const NATIVE_OPPOSITE: Self = Self::NATIVE.opposite();
 
     /// Checks if `self` is the compilation target's native byte-order.
     ///
@@ -152,7 +158,7 @@ pub trait ByteOrdered: Sized {
     fn ordered_ne(self, current_order: ByteOrder) -> Self {
         match current_order {
             ByteOrder::NATIVE => self,
-            _ => self.swapped_order(),
+            ByteOrder::NATIVE_OPPOSITE => self.swapped_order(),
         }
     }
 
@@ -179,7 +185,7 @@ pub trait ByteOrdered: Sized {
     fn ordered_le(self, current_order: ByteOrder) -> Self {
         match current_order {
             ByteOrder::Le => self,
-            _ => self.swapped_order(),
+            ByteOrder::Be => self.swapped_order(),
         }
     }
 
@@ -205,7 +211,43 @@ pub trait ByteOrdered: Sized {
     fn ordered_be(self, current_order: ByteOrder) -> Self {
         match current_order {
             ByteOrder::Be => self,
-            _ => self.swapped_order(),
+            ByteOrder::Le => self.swapped_order(),
+        }
+    }
+
+    /// Provided `self`'s current byte-order and a new byte-order for `self`, conditionally swap
+    /// swap `self`'s bytes so that it is encoded in that new byte-order.
+    ///
+    /// # Examples
+    /// basic usage:
+    /// ```
+    /// // Converting the byte-order of a value to various different byte-orders where the value's
+    /// // current byte-order and new byte-order are both provided as arguments.
+    /// use lilbig::{ByteOrder, ByteOrdered};
+    ///
+    /// const NE_N: u32 = 0x7cf3a4b1;
+    /// const LE_N: u32 = NE_N.to_le();
+    /// const BE_N: u32 = NE_N.to_be();
+    ///
+    /// assert_eq!(NE_N, NE_N.ordered_as(ByteOrder::NATIVE, ByteOrder::NATIVE));
+    /// assert_eq!(LE_N, NE_N.ordered_as(ByteOrder::NATIVE, ByteOrder::Le));
+    /// assert_eq!(BE_N, NE_N.ordered_as(ByteOrder::NATIVE, ByteOrder::Be));
+    ///
+    /// assert_eq!(NE_N, LE_N.ordered_as(ByteOrder::Le, ByteOrder::NATIVE));
+    /// assert_eq!(LE_N, LE_N.ordered_as(ByteOrder::Le, ByteOrder::Le));
+    /// assert_eq!(BE_N, LE_N.ordered_as(ByteOrder::Le, ByteOrder::Be));
+    ///
+    /// assert_eq!(NE_N, BE_N.ordered_as(ByteOrder::Be, ByteOrder::NATIVE));
+    /// assert_eq!(LE_N, BE_N.ordered_as(ByteOrder::Be, ByteOrder::Le));
+    /// assert_eq!(BE_N, BE_N.ordered_as(ByteOrder::Be, ByteOrder::Be));
+    /// ```
+    #[inline]
+    #[must_use]
+    fn ordered_as(self, current_order: ByteOrder, new_order: ByteOrder) -> Self {
+        if current_order == new_order {
+            self
+        } else {
+            self.swapped_order()
         }
     }
 }
@@ -419,6 +461,51 @@ pub trait FieldsByteOrdered {
     #[inline]
     fn order_fields_be(&mut self, current_order: ByteOrder) {
         if current_order != ByteOrder::Be {
+            self.swap_field_orders();
+        }
+    }
+
+    /// Provided `self`'s current byte-order and a new byte-order for `self`, conditionally swap
+    /// the byte-order of `self`'s fields so that they are encoded in that new byte-order.
+    ///
+    /// # Examples
+    /// Basic usage:
+    /// ```
+    /// // Converting the byte-order of all the elements within an array to various byte-orders
+    /// // where the current byte-order of the elements and the new byte-order for the elements are
+    /// // both provided as arguments.
+    /// use lilbig::{ByteOrder, FieldsByteOrdered};
+    ///
+    /// const NE_NUMBERS: [u32; 4] = [0x7cf3a4b1, 0x3dd4f42, 0xff317cde, 0x87fce321];
+    /// let le_numbers = NE_NUMBERS.map(u32::to_le);
+    /// let be_numbers = NE_NUMBERS.map(u32::to_be);
+    ///
+    /// /// Helper function to clone a value and then encode the fields of that clone in a new
+    /// /// byte-order.
+    /// fn clone_ordered_as<T: Clone + FieldsByteOrdered>(
+    ///    value: &T,
+    ///    current_order: ByteOrder,
+    ///    new_order: ByteOrder,
+    /// ) -> T {
+    ///     let mut new_value = value.clone();
+    ///     new_value.order_fields_as(current_order, new_order);
+    ///     new_value
+    /// }
+    ///
+    /// assert_eq!(NE_NUMBERS, clone_ordered_as(&NE_NUMBERS, ByteOrder::NATIVE, ByteOrder::NATIVE));
+    /// assert_eq!(le_numbers, clone_ordered_as(&NE_NUMBERS, ByteOrder::NATIVE, ByteOrder::Le));
+    /// assert_eq!(be_numbers, clone_ordered_as(&NE_NUMBERS, ByteOrder::NATIVE, ByteOrder::Be));
+    ///
+    /// assert_eq!(NE_NUMBERS, clone_ordered_as(&le_numbers, ByteOrder::Le, ByteOrder::NATIVE));
+    /// assert_eq!(le_numbers, clone_ordered_as(&le_numbers, ByteOrder::Le, ByteOrder::Le));
+    /// assert_eq!(be_numbers, clone_ordered_as(&le_numbers, ByteOrder::Le, ByteOrder::Be));
+    ///
+    /// assert_eq!(NE_NUMBERS, clone_ordered_as(&be_numbers, ByteOrder::Be, ByteOrder::NATIVE));
+    /// assert_eq!(le_numbers, clone_ordered_as(&be_numbers, ByteOrder::Be, ByteOrder::Le));
+    /// assert_eq!(be_numbers, clone_ordered_as(&be_numbers, ByteOrder::Be, ByteOrder::Be));
+    /// ```
+    fn order_fields_as(&mut self, current_order: ByteOrder, new_order: ByteOrder) {
+        if current_order != new_order {
             self.swap_field_orders();
         }
     }
