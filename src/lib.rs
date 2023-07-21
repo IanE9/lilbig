@@ -219,7 +219,7 @@ pub trait ByteOrdered: Sized {
     /// swap `self`'s bytes so that it is encoded in that new byte-order.
     ///
     /// # Examples
-    /// basic usage:
+    /// Basic usage:
     /// ```
     /// // Converting the byte-order of a value to various different byte-orders where the value's
     /// // current byte-order and new byte-order are both provided as arguments.
