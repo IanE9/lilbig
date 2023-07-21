@@ -1,5 +1,10 @@
+![Crates.io](https://img.shields.io/crates/l/lilbig) ![Crates.io](https://img.shields.io/crates/v/lilbig) ![docs.rs](https://img.shields.io/docsrs/lilbig)
+
 # LilBig
 A Rust crate offering utilities for swapping the byte-order of in-memory types.
+
+## 🚧 Stability 🚧
+This crate is in early development. Understand that breaking changes may be made between minor versions tagged with the pre-release code `alpha`. Additionally understand that if you are interested in using this crate but have some dissatisfaction with the current API that now is an excellent time to make [suggestions](https://github.com/IanE9/lilbig/issues).
 
 ## When might I want to use this crate?
 The user will likely find this crate most useful and appropriate when the following conditions are met:
