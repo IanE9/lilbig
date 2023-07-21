@@ -2,3 +2,5 @@
 name = "lilbig"
 version = "0.1.0-alpha"
 edition = "2021"
+description = "Utilities for swapping the byte-order of in-memory types."
+license = "MPL-2.0"
