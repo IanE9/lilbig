@@ -1,4 +1,7 @@
+//! Utilities for swapping the byte-order of in-memory types.
+
 #![no_std]
+#![warn(missing_docs)]
 
 mod core_impls;
 
