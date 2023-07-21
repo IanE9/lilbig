@@ -2,31 +2,37 @@
 
 mod core_impls;
 
-/// Byte-order.
+/// Enumeration providing byte-order variants.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ByteOrder {
-    /// Little endian.
+    /// Little-endian.
     Le,
-    /// Big endian.
+    /// Big-endian.
     Be,
 }
 
-impl ByteOrder {
-    /// The compilation target's native byte-order.
-    pub const NATIVE: Self = {
-        #[cfg(target_endian = "little")]
-        {
-            ByteOrder::Le
-        }
-        #[cfg(target_endian = "big")]
-        {
-            ByteOrder::Be
-        }
+/// Helper to define the native byte-order constant for the compilation target.
+///
+/// This exists primarily to ensure that there is exactly one location where the documentation for
+/// the `NATIVE` constant is physically written.
+macro_rules! byte_order_native {
+    ($($cfg: literal => $byte_order: expr,)+) => {
+        $(/// The compilation target's native byte-order.
+        #[cfg(target_endian = $cfg)]
+        pub const NATIVE: Self = $byte_order;)+
     };
+}
 
-    /// Returns `true` if `self` is the compilation target's native byte-order.
+impl ByteOrder {
+    byte_order_native! {
+        "little" => Self::Le,
+        "big" => Self::Be,
+    }
+
+    /// Checks if `self` is the compilation target's native byte-order.
     ///
     /// # Examples
+    /// Basic usage:
     /// ```
     /// use lilbig::ByteOrder;
     /// assert_eq!(ByteOrder::NATIVE.is_native(), true);
@@ -39,9 +45,10 @@ impl ByteOrder {
         matches!(self, Self::NATIVE)
     }
 
-    /// Retrieve the opposite byte-order of `self`.
+    /// Retrieves the opposite byte-order of `self`.
     ///
     /// # Examples
+    /// Basic usage:
     /// ```
     /// use lilbig::ByteOrder;
     /// assert_eq!(ByteOrder::Le.opposite(), ByteOrder::Be);
@@ -60,6 +67,7 @@ impl ByteOrder {
 impl core::ops::Not for ByteOrder {
     type Output = Self;
 
+    /// Invokes [`opposite()`](Self::opposite).
     #[inline(always)]
     #[must_use]
     fn not(self) -> Self::Output {
@@ -70,6 +78,7 @@ impl core::ops::Not for ByteOrder {
 /// Trait for converting the byte-order of primitive-esque types.
 ///
 /// # Examples
+/// Implementing:
 /// ```
 /// /// 256-bit unsigned integer.
 /// #[derive(Clone, Copy)]
@@ -77,10 +86,9 @@ impl core::ops::Not for ByteOrder {
 /// struct U256([u8; 32]);
 ///
 /// impl lilbig::ByteOrdered for U256 {
-///     fn swapped_order(self) -> Self {
-///         let mut bytes = self.0;
-///         bytes.reverse();
-///         Self(bytes)
+///     fn swapped_order(mut self) -> Self {
+///         self.0.reverse();
+///         self
 ///     }
 /// }
 /// ```
@@ -88,15 +96,18 @@ pub trait ByteOrdered: Sized {
     /// Unconditionally swap the byte-order of `self`.
     ///
     /// # Examples
+    /// Basic usage:
     /// ```
+    /// // Implementing a helper function that can generically provide the value of `1` encoded in a
+    /// // byte-order provided at runtime.
     /// use lilbig::{ByteOrder, ByteOrdered};
     ///
     /// /// Trait generically providing the value of `1` for some type.
     /// trait One: Sized { const ONE: Self; }
     /// impl One for u32 { const ONE: Self = 1; }
     ///
-    /// /// Construct a value of `1` encoded with the given byte-order.
-    /// fn ordered_one<T: One + ByteOrdered>(byte_order: ByteOrder) -> T {
+    /// /// Helper function to construct a value of `1` encoded in an argument provided byte-order.
+    /// fn one_ordered<T: One + ByteOrdered>(byte_order: ByteOrder) -> T {
     ///     let mut one = T::ONE;
     ///     if !byte_order.is_native() {
     ///         one = one.swapped_order();
@@ -104,9 +115,13 @@ pub trait ByteOrdered: Sized {
     ///     one
     /// }
     ///
-    /// assert_eq!(ordered_one::<u32>(ByteOrder::NATIVE), 1u32);
-    /// assert_eq!(ordered_one::<u32>(ByteOrder::Le), u32::from_ne_bytes([1, 0, 0, 0]));
-    /// assert_eq!(ordered_one::<u32>(ByteOrder::Be), u32::from_ne_bytes([0, 0, 0, 1]));
+    /// const NE_ONE: u32 = 1u32;
+    /// const LE_ONE: u32 = 1u32.to_le();
+    /// const BE_ONE: u32 = 1u32.to_be();
+    ///
+    /// assert_eq!(NE_ONE, one_ordered::<u32>(ByteOrder::NATIVE));
+    /// assert_eq!(LE_ONE, one_ordered::<u32>(ByteOrder::Le));
+    /// assert_eq!(BE_ONE, one_ordered::<u32>(ByteOrder::Be));
     /// ```
     #[must_use]
     fn swapped_order(self) -> Self;
@@ -115,15 +130,19 @@ pub trait ByteOrdered: Sized {
     /// of `self`'s bytes so that it is encoded in the machine's native byte-order.
     ///
     /// # Examples
+    /// Basic usage:
     /// ```
+    /// // Converting the byte-order of a value to the machine's native byte-order where the value's
+    /// // current byte-order is provided as an argument.
     /// use lilbig::{ByteOrder, ByteOrdered};
     ///
-    /// const LE_ONE: u32 = u32::from_ne_bytes([1, 0, 0, 0]); // `1u32` encoded in little endian.
-    /// const BE_ONE: u32 = u32::from_ne_bytes([0, 0, 0, 1]); // `1u32` encoded in big endian.
+    /// const NE_N: u32 = 0x7cf3a4b1;
+    /// const LE_N: u32 = NE_N.to_le();
+    /// const BE_N: u32 = NE_N.to_be();
     ///
-    /// assert_eq!(1u32.ordered_ne(ByteOrder::NATIVE), 1u32);
-    /// assert_eq!(LE_ONE.ordered_ne(ByteOrder::Le), 1u32);
-    /// assert_eq!(BE_ONE.ordered_ne(ByteOrder::Be), 1u32);
+    /// assert_eq!(NE_N, NE_N.ordered_ne(ByteOrder::NATIVE));
+    /// assert_eq!(NE_N, LE_N.ordered_ne(ByteOrder::Le));
+    /// assert_eq!(NE_N, BE_N.ordered_ne(ByteOrder::Be));
     /// ```
     #[inline]
     #[must_use]
@@ -138,15 +157,19 @@ pub trait ByteOrdered: Sized {
     /// of `self`'s bytes so that it is encoded in little-endian byte-order.
     ///
     /// # Examples
+    /// Basic usage:
     /// ```
+    /// // Converting the byte-order of a value to little-endian where the value's current
+    /// // byte-order is provided as an argument.
     /// use lilbig::{ByteOrder, ByteOrdered};
     ///
-    /// const LE_ONE: u32 = u32::from_ne_bytes([1, 0, 0, 0]); // `1u32` encoded in little endian.
-    /// const BE_ONE: u32 = u32::from_ne_bytes([0, 0, 0, 1]); // `1u32` encoded in big endian.
+    /// const NE_N: u32 = 0x7cf3a4b1;
+    /// const LE_N: u32 = NE_N.to_le();
+    /// const BE_N: u32 = NE_N.to_be();
     ///
-    /// assert_eq!(1u32.ordered_le(ByteOrder::NATIVE), LE_ONE);
-    /// assert_eq!(LE_ONE.ordered_le(ByteOrder::Le), LE_ONE);
-    /// assert_eq!(BE_ONE.ordered_le(ByteOrder::Be), LE_ONE);
+    /// assert_eq!(LE_N, NE_N.ordered_le(ByteOrder::NATIVE));
+    /// assert_eq!(LE_N, LE_N.ordered_le(ByteOrder::Le));
+    /// assert_eq!(LE_N, BE_N.ordered_le(ByteOrder::Be));
     /// ```
     #[inline]
     #[must_use]
@@ -161,15 +184,19 @@ pub trait ByteOrdered: Sized {
     /// of `self`'s bytes so that it is encoded in big-endian byte-order.
     ///
     /// # Examples
+    /// Basic usage:
     /// ```
+    /// // Converting the byte-order of a value to big-endian where the value's current byte-order
+    /// // is provided as an argument.
     /// use lilbig::{ByteOrder, ByteOrdered};
     ///
-    /// const LE_ONE: u32 = u32::from_ne_bytes([1, 0, 0, 0]); // `1u32` encoded in little endian.
-    /// const BE_ONE: u32 = u32::from_ne_bytes([0, 0, 0, 1]); // `1u32` encoded in big endian.
+    /// const NE_N: u32 = 0x7cf3a4b1;
+    /// const LE_N: u32 = NE_N.to_le();
+    /// const BE_N: u32 = NE_N.to_be();
     ///
-    /// assert_eq!(1u32.ordered_be(ByteOrder::NATIVE), BE_ONE);
-    /// assert_eq!(LE_ONE.ordered_be(ByteOrder::Le), BE_ONE);
-    /// assert_eq!(BE_ONE.ordered_be(ByteOrder::Be), BE_ONE);
+    /// assert_eq!(BE_N, NE_N.ordered_be(ByteOrder::NATIVE));
+    /// assert_eq!(BE_N, LE_N.ordered_be(ByteOrder::Le));
+    /// assert_eq!(BE_N, BE_N.ordered_be(ByteOrder::Be));
     #[inline]
     #[must_use]
     fn ordered_be(self, current_order: ByteOrder) -> Self {
@@ -191,6 +218,7 @@ pub trait ByteOrdered: Sized {
 /// swap the byte-order of all that array/slice's elements.
 ///
 /// # Examples
+/// Implementing:
 /// ```
 /// // Defining the low level types for a basic user implemented file-system where the byte-order of
 /// // the file-system can vary.
@@ -224,13 +252,13 @@ pub trait ByteOrdered: Sized {
 ///     pub group_access_privileges: [AccessPrivilegeFlags; MAX_GROUPS],
 /// }
 ///
-/// impl FieldsByteOrdered for AccessPrivilegeFlags {
+/// impl FieldsByteOrdered for GroupId {
 ///     fn swap_field_orders(&mut self) {
 ///         self.0.swap_field_orders();
 ///     }
 /// }
 ///
-/// impl FieldsByteOrdered for GroupId {
+/// impl FieldsByteOrdered for AccessPrivilegeFlags {
 ///     fn swap_field_orders(&mut self) {
 ///         self.0.swap_field_orders();
 ///     }
@@ -253,6 +281,33 @@ pub trait FieldsByteOrdered {
 
     /// Provided `self`'s current byte-order as an input argument, conditionally swap the byte-order
     /// of `self`'s fields so that they are in the machine's native byte-order.
+    ///
+    /// # Examples
+    /// Basic usage:
+    /// ```
+    /// // Converting the byte-order of all the elements within an array to the machine's native
+    /// // byte-order where the current byte-order of the elements is provided as an argument.
+    /// use lilbig::{ByteOrder, FieldsByteOrdered};
+    ///
+    /// const NE_NUMBERS: [u32; 4] = [0x7cf3a4b1, 0x3dd4f42, 0xff317cde, 0x87fce321];
+    /// let le_numbers = NE_NUMBERS.map(u32::to_le);
+    /// let be_numbers = NE_NUMBERS.map(u32::to_be);
+    ///
+    /// /// Helper function to clone a value and then encode the fields of that clone in the
+    /// /// machine's native byte-order.
+    /// fn clone_ordered_ne<T: Clone + FieldsByteOrdered>(
+    ///    value: &T,
+    ///    current_order: ByteOrder,
+    /// ) -> T {
+    ///     let mut new_value = value.clone();
+    ///     new_value.order_fields_ne(current_order);
+    ///     new_value
+    /// }
+    ///
+    /// assert_eq!(NE_NUMBERS, clone_ordered_ne(&NE_NUMBERS, ByteOrder::NATIVE));
+    /// assert_eq!(NE_NUMBERS, clone_ordered_ne(&le_numbers, ByteOrder::Le));
+    /// assert_eq!(NE_NUMBERS, clone_ordered_ne(&be_numbers, ByteOrder::Be));
+    /// ```
     #[inline]
     fn order_fields_ne(&mut self, current_order: ByteOrder) {
         if current_order != ByteOrder::NATIVE {
@@ -262,6 +317,33 @@ pub trait FieldsByteOrdered {
 
     /// Provided `self`'s current byte-order as an input argument, conditionally swap the byte-order
     /// of `self`'s fields so that they are in little-endian byte-order.
+    ///
+    /// # Examples
+    /// Basic usage:
+    /// ```
+    /// // Converting the byte-order of all the elements within an array to little-endian where the
+    /// // current byte-order of the elements is provided as an argument.
+    /// use lilbig::{ByteOrder, FieldsByteOrdered};
+    ///
+    /// const NE_NUMBERS: [u32; 4] = [0x7cf3a4b1, 0x3dd4f42, 0xff317cde, 0x87fce321];
+    /// let le_numbers = NE_NUMBERS.map(u32::to_le);
+    /// let be_numbers = NE_NUMBERS.map(u32::to_be);
+    ///
+    /// /// Helper function to clone a value and then encode the fields of that clone in
+    /// /// little-endian.
+    /// fn clone_ordered_le<T: Clone + FieldsByteOrdered>(
+    ///    value: &T,
+    ///    current_order: ByteOrder,
+    /// ) -> T {
+    ///     let mut new_value = value.clone();
+    ///     new_value.order_fields_le(current_order);
+    ///     new_value
+    /// }
+    ///
+    /// assert_eq!(le_numbers, clone_ordered_le(&NE_NUMBERS, ByteOrder::NATIVE));
+    /// assert_eq!(le_numbers, clone_ordered_le(&le_numbers, ByteOrder::Le));
+    /// assert_eq!(le_numbers, clone_ordered_le(&be_numbers, ByteOrder::Be));
+    /// ```
     #[inline]
     fn order_fields_le(&mut self, current_order: ByteOrder) {
         if current_order != ByteOrder::Le {
@@ -271,6 +353,32 @@ pub trait FieldsByteOrdered {
 
     /// Provided `self`'s current byte-order as an input argument, conditionally swap the byte-order
     /// of `self`'s fields so that they are in big-endian byte-order.
+    ///
+    /// # Examples
+    /// Basic usage:
+    /// ```
+    /// // Converting the byte-order of all the elements within an array to big-endian where the
+    /// // current byte-order of the elements is provided as an argument.
+    /// use lilbig::{ByteOrder, FieldsByteOrdered};
+    ///
+    /// const NE_NUMBERS: [u32; 4] = [0x7cf3a4b1, 0x3dd4f42, 0xff317cde, 0x87fce321];
+    /// let le_numbers = NE_NUMBERS.map(u32::to_le);
+    /// let be_numbers = NE_NUMBERS.map(u32::to_be);
+    ///
+    /// /// Helper function to clone a value and then encode the fields of that clone in big-endian.
+    /// fn clone_ordered_be<T: Clone + FieldsByteOrdered>(
+    ///    value: &T,
+    ///    current_order: ByteOrder,
+    /// ) -> T {
+    ///     let mut new_value = value.clone();
+    ///     new_value.order_fields_be(current_order);
+    ///     new_value
+    /// }
+    ///
+    /// assert_eq!(be_numbers, clone_ordered_be(&NE_NUMBERS, ByteOrder::NATIVE));
+    /// assert_eq!(be_numbers, clone_ordered_be(&le_numbers, ByteOrder::Le));
+    /// assert_eq!(be_numbers, clone_ordered_be(&be_numbers, ByteOrder::Be));
+    /// ```
     #[inline]
     fn order_fields_be(&mut self, current_order: ByteOrder) {
         if current_order != ByteOrder::Be {
