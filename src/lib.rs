@@ -216,7 +216,7 @@ pub trait ByteOrdered: Sized {
     }
 
     /// Provided `self`'s current byte-order and a new byte-order for `self`, conditionally swap
-    /// swap `self`'s bytes so that it is encoded in that new byte-order.
+    /// `self`'s bytes so that it is encoded in that new byte-order.
     ///
     /// # Examples
     /// Basic usage:
