@@ -1,6 +1,6 @@
 [package]
 name = "lilbig"
-version = "0.2.0"
+version = "0.2.1"
 edition = "2021"
 description = "Utilities for swapping the byte-order of in-memory types."
 repository = "https://github.com/IanE9/lilbig"
