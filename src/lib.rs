@@ -45,6 +45,7 @@ impl ByteOrder {
     /// ```
     /// use lilbig::ByteOrder;
     /// assert_eq!(ByteOrder::NATIVE.is_native(), true);
+    /// assert_eq!(ByteOrder::NATIVE_OPPOSITE.is_native(), false);
     /// assert_eq!(ByteOrder::Le.is_native(), cfg!(target_endian = "little"));
     /// assert_eq!(ByteOrder::Be.is_native(), cfg!(target_endian = "big"));
     /// ```
@@ -60,6 +61,8 @@ impl ByteOrder {
     /// Basic usage:
     /// ```
     /// use lilbig::ByteOrder;
+    /// assert_eq!(ByteOrder::NATIVE.opposite(), ByteOrder::NATIVE_OPPOSITE);
+    /// assert_eq!(ByteOrder::NATIVE_OPPOSITE.opposite(), ByteOrder::NATIVE);
     /// assert_eq!(ByteOrder::Le.opposite(), ByteOrder::Be);
     /// assert_eq!(ByteOrder::Be.opposite(), ByteOrder::Le);
     /// ```
